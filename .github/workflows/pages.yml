@@ -1,0 +1,231 @@
+name: pages
+on:
+  schedule:
+    # 每天 UTC 时间 01:00 运行 (即北京时间 9:00)
+    - cron: '17 23 * * *'
+  # 允许手动触发
+  workflow_dispatch:
+
+jobs:
+  build:
+    permissions:
+      contents: write
+      pages: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Chinese Fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-wqy-zenhei  # 安装文泉驿正黑字体
+
+      - name: Install package
+        run: pip install -e .
+
+      - name: Make Configuration
+        # 创建配置文件，与本地 config/settings.py 保持一致
+        run: |
+          mkdir -p config
+          touch config/__init__.py
+          cat > config/settings.py << 'EOF'
+          """
+          ArXiv API 配置文件 - Q-Fin & 搜推 Edition
+          """
+          import os
+          from dotenv import load_dotenv
+          load_dotenv()
+          
+          # q-fin 量化金融分类
+          Q_FIN_CATEGORIES = [
+              "q-fin.CP",  # Computational Finance
+              "q-fin.GN",  # General Finance
+              "q-fin.PR",  # Pricing of Securities
+              "q-fin.RM",  # Risk Management
+              "q-fin.ST",  # Statistical Finance
+              "q-fin.TR",  # Trading and Market Microstructure
+          ]
+          
+          # 搜推相关分类
+          SEARCH_RECOMMENDATION_CATEGORIES = [
+              "cs.IR",     # Information Retrieval
+              "cs.LG",     # Machine Learning
+          ]
+          
+          # 兼容旧代码
+          CATEGORIES = Q_FIN_CATEGORIES + SEARCH_RECOMMENDATION_CATEGORIES
+          
+          # q-fin 搜索查询配置
+          Q_FIN_QUERY = '("quantitative finance" OR "algorithmic trading" OR "portfolio optimization" OR "risk management" OR "financial modeling" OR "market microstructure" OR "option pricing" OR "derivatives pricing" OR "asset pricing" OR "trading strategy" OR "high-frequency trading")'
+          
+          # 搜推搜索查询配置
+          SEARCH_RECOMMENDATION_QUERY = '("recommendation system" OR "search engine" OR "information retrieval" OR "collaborative filtering" OR "ranking" OR "recommender system" OR "personalized recommendation" OR "learning to rank" OR "neural information retrieval")'
+          
+          # 兼容旧代码（默认使用 q-fin）
+          QUERY = Q_FIN_QUERY
+          
+          # arXiv API 搜索配置（基础配置）
+          BASE_SEARCH_CONFIG = {
+              'max_total_results': 38,          # 每次获取的最大论文数量，建议控制在50以内以节省Token
+              'sort_by': 'SubmittedDate',       # 按提交时间排序
+              'sort_order': 'Ascending',        # 最老在前（从旧到新）
+              'include_cross_listed': True,
+              'abstracts': True,
+              'id_list': None,
+              'title_only': False,
+              'author_only': False,
+              'abstract_only': False,
+              'search_mode': 'all',
+              'days_back': 3,                   # 只查询最近N天的论文
+          }
+          
+          # q-fin 搜索配置
+          Q_FIN_SEARCH_CONFIG = {
+              **BASE_SEARCH_CONFIG,
+              'categories': Q_FIN_CATEGORIES,
+          }
+          
+          # 搜推搜索配置
+          SEARCH_RECOMMENDATION_SEARCH_CONFIG = {
+              **BASE_SEARCH_CONFIG,
+              'categories': SEARCH_RECOMMENDATION_CATEGORIES,
+          }
+          
+          # 兼容旧代码（默认使用 q-fin 配置）
+          SEARCH_CONFIG = Q_FIN_SEARCH_CONFIG
+          
+          # 语言模型API配置 (DashScope / DeepSeek)
+          LLM_CONFIG = {
+              # 优先从环境变量读取，如果没有则使用你提供的（本地测试用）
+              # 生产环境请务必使用环境变量！
+              'api_key': os.getenv("LLM_API_KEY"),
+              
+              # DashScope 兼容模式模型名称 (DeepSeek-V3)
+              'model': 'deepseek-v3', 
+              
+              # 你的 API Base URL
+              'api_url': os.getenv("LLM_API_URL"),
+              
+              'temperature': 0.3,           # 降低温度，让总结更准确
+              'max_output_tokens': 4000,
+              'top_p': 0.8,
+              'top_k': 40,
+              'retry_count': 3,
+              'retry_delay': 5,
+              'timeout': 120,               # 适当增加超时时间
+          }
+          
+          # 输出配置
+          OUTPUT_DIR = "data"
+          LAST_RUN_FILE = "last_run.json"
+          METADATA_FILE = "metadata.json"
+          LLM_API_KEY = LLM_CONFIG['api_key'] # 兼容 main.py 的引用
+          
+          # PDF 处理配置
+          PDF_CONFIG = {
+              'extract_key_sections': True,  # True: 提取关键章节（摘要、Introduction、Related Work、Conclusion）, False: 只使用摘要
+              'max_chars': 20000,             # 每篇论文最大字符数（避免 token 超限）
+          }
+          
+          # Embedding API 配置
+          EMBEDDING_CONFIG = {
+              'api_url': os.getenv("EMBEDDING_API_URL"),
+              'timeout': 30,
+              'batch_size': 200,  # 每次批量处理的论文数量
+          }
+          
+          # DBSCAN 聚类配置
+          CLUSTERING_CONFIG = {
+              'method': 'kmeans',     # 'dbscan' 或 'kmeans'
+              'n_clusters': 4,        # K-Means 的聚类数量（建议 3-5）
+              
+              'eps': 0.28,  # 邻域半径
+              'min_samples': 2,  # 最小样本数
+              'n_jobs': -1,  # 使用所有CPU核心
+              'top_clusters': 5,  # 选择最大的N个聚类
+          }
+          
+          # 邮件配置
+          # 优先从环境变量读取，如果没有则使用默认值（本地运行时使用）
+          MAIL_CONFIG = {
+              'smtp_server': os.getenv("SMTP_SERVER", "smtp.feishu.cn"),
+              'smtp_port': int(os.getenv("SMTP_PORT", "465")),
+              'sender_email': os.getenv("SENDER_EMAIL"),  # 默认使用你的邮箱作为发件人
+              'sender_password': os.getenv("SENDER_PASSWORD"),  # 需要设置环境变量或使用应用专用密码
+              'receiver_email': os.getenv("RECEIVER_EMAIL"),  # 默认发送到你的邮箱
+          }
+          EOF
+      
+      - name: Restore data from gh-pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: ./data
+        continue-on-error: true
+
+      - name: Check data directory
+        run: |
+          # 检查是否存在 summary_*.md 格式的文件（包括 qfin 和 search 前缀）
+          if [ -d ./data ] && [ -n "$(find ./data -name 'summary_*.md' -type f 2>/dev/null)" ]; then
+            echo "找到 summary_*.md 格式的文件，继续使用现有记录"
+            echo "文件列表："
+            find ./data -name 'summary_*.md' -type f 2>/dev/null | head -5
+          else
+            echo "未找到 summary_*.md 格式的文件，将生成新的摘要"
+          fi
+
+      - name: Build the data
+        env:
+          # 读取 GitHub Secrets 中的 API Key
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          EMBEDDING_API_URL: ${{ secrets.EMBEDDING_API_URL }}
+          LLM_API_URL: ${{ secrets.LLM_API_URL }}
+          # 新增飞书邮件配置
+          SMTP_SERVER: 'smtp.feishu.cn'
+          SMTP_PORT: '465'
+          SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+          SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }} # 飞书应用专用密码
+          RECEIVER_EMAIL: ${{ secrets.RECEIVER_EMAIL }}
+        run: python main.py
+       
+      - name: Debug - Check generated files
+        run: |
+          echo "=== 检查 data 目录中的文件 ==="
+          ls -la ./data/ || echo "data 目录不存在"
+          echo ""
+          echo "=== 查找 summary_*.md 文件（包括 qfin 和 search） ==="
+          find ./data -name "summary_*.md" -type f 2>/dev/null | head -10 || echo "未找到 summary_*.md 文件"
+          echo ""
+          echo "=== 查找 q-fin 相关文件 ==="
+          find ./data -name "summary_qfin_*.md" -type f 2>/dev/null | head -5 || echo "未找到 q-fin 文件"
+          echo ""
+          echo "=== 查找搜推相关文件 ==="
+          find ./data -name "summary_search_*.md" -type f 2>/dev/null | head -5 || echo "未找到搜推文件"
+          echo ""
+          echo "=== 查找所有 .md 文件 ==="
+          find ./data -name "*.md" -type f 2>/dev/null | head -10 || echo "未找到 .md 文件"
+      
+      - name: Generate site
+        # days=30 表示保留最近 30 天的记录在首页归档中
+        # 既然是日报，保留一个月的数据比较合理
+        run: arxivsite --data-dir ./data --github-dir ./.github --days 30
+      
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./data
+          publish_branch: gh-pages
+          enable_jekyll: true
+          user_name: github-actions[bot]
+          user_email: github-actions[bot]@users.noreply.github.com
