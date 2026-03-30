@@ -3,7 +3,7 @@ layout: default
 title: Arxiv 搜推 (搜索推荐) 每日研报
 ---
 
-[查看所有摘要归档](archive.md) | 更新日期: 2026-03-29
+[查看所有摘要归档](archive.md) | 更新日期: 2026-03-30
 
 # Arxiv 搜推 (搜索推荐) 每日研报
 
