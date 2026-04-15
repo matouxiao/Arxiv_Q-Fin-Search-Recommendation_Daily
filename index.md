@@ -3,12 +3,12 @@ layout: default
 title: Arxiv 搜推 (搜索推荐) 每日研报
 ---
 
-[查看所有摘要归档](archive.md) | 更新日期: 2026-04-14
+[查看所有摘要归档](archive.md) | 更新日期: 2026-04-15
 
 # Arxiv 搜推 (搜索推荐) 每日研报
 
-> **更新时间**：2026-04-13 07:53:25
-> **论文数量**：17 篇
+> **更新时间**：2026-03-18 07:49:31
+> **论文数量**：33 篇
 > **推荐分布**：⭐推荐 0 篇 \| 📌边缘可看 0 篇 \| ❌不推荐 0 篇
 > **自动生成**：By Arxiv\_Q-Fin\_Search-Recommendation\_Daily Agent
 
@@ -21,6 +21,12 @@ title: Arxiv 搜推 (搜索推荐) 每日研报
 ---
 
 ## 📝 论文详细列表
+
+**[本批次生成失败]** 错误信息: Invalid URL '/chat/completions': No scheme supplied. Perhaps you meant https:///chat/completions?
+
+**[本批次生成失败]** 错误信息: Invalid URL '/chat/completions': No scheme supplied. Perhaps you meant https:///chat/completions?
+
+**[本批次生成失败]** 错误信息: Invalid URL '/chat/completions': No scheme supplied. Perhaps you meant https:///chat/completions?
 
 **[本批次生成失败]** 错误信息: Invalid URL '/chat/completions': No scheme supplied. Perhaps you meant https:///chat/completions?
 
